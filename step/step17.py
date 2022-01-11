@@ -59,6 +59,7 @@ class Variable():
                     add_func(x.creator)
     def clear_grad(self): # grad 초기화
         self.grad=None
+
 class Function:
     def __call__(self,*inputs):
         xs=[x.data for x in inputs] #input에서 데이터 추출.

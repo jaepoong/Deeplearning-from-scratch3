@@ -27,9 +27,9 @@ class Variable():
         self.creator = func
         self.generation=func.generation+1
     # 역전파의 미분값 재귀호출
-    def backward(self,retain_grad=False):
+    def backward(self,retain_grad=False,create_graph=False):
         if self.grad is None:  # 최조 grad값을 1로 설정한다.
-            self.grad=np.ones_like(self.data)
+            self.grad=Variable(np.ones_like(self.data))
         funcs=[] # 함수목록
         seen_set=set()
         # Function 입력하고 세대별 정렬.
@@ -42,19 +42,20 @@ class Variable():
         while funcs: # 입력 Function당 세대순
             f=funcs.pop()
             gys=[output().grad for output in f.outputs]
-            gxs=f.backward(*gys)
-            if not isinstance(gxs,tuple):
-                gxs=(gxs,)
-            for x,gx in zip(f.inputs,gxs):
-                if x.grad is None:
-                    x.grad=gx
-                else:
-                    x.grad=x.grad+gx
-                if x.creator is not None:
-                    add_func(x.creator)
-            if not retain_grad:
-                for y in f.outputs:
-                    y().grad=None
+            with using_config('enable_backprop',create_graph):
+                gxs=f.backward(*gys)
+                if not isinstance(gxs,tuple):
+                    gxs=(gxs,)
+                for x,gx in zip(f.inputs,gxs):
+                    if x.grad is None:
+                        x.grad=gx
+                    else:
+                        x.grad=x.grad+gx
+                    if x.creator is not None:
+                        add_func(x.creator)
+                if not retain_grad:
+                    for y in f.outputs:
+                        y().grad=None
     def clear_grad(self): # grad 초기화
         self.grad=None
     # 넘파이의 여러 메서드 구현.
@@ -76,6 +77,7 @@ class Variable():
         p=str(self.data).replace('\n','\n'+' '*9)
         return 'variable('+p+')'
     # *가능하게 변경
+    
 class Function:
     def __call__(self,*inputs):
         inputs=[as_variable(x) for x in inputs]
@@ -141,6 +143,7 @@ class Pow(Function):
         c=self.c
         gx=c*x**(c-1)*gy
         return gx
+@contextlib.contextmanager
 def using_config(name,value):
     old_value=getattr(Config,name)
     setattr(Config,name,value)
